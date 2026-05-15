@@ -1,11 +1,30 @@
-<div align="center">
+# Indus AI Dashboard
 
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+A powerful, AI-driven dashboard featuring web synthesis, artifact management, and conversational interfaces.
 
-  <h1>Built with AI Studio</h2>
+## Run Locally
 
-  <p>The fastest path from prompt to production with Gemini.</p>
+**Prerequisites:**
+- Node.js (v18 or higher recommended)
+- npm
 
-  <a href="https://aistudio.google.com/apps">Start building</a>
+### 1. Install dependencies
+```bash
+npm install
+```
 
-</div>
+### 2. Set up environment variables
+Create a `.env` or `.env.local` file in the root directory and add your Gemini API key:
+```env
+GEMINI_API_KEY=your_gemini_api_key_here
+```
+
+*(Note: See `.env.example` for the full list of available environment variables)*
+
+### 3. Run the app
+Start the local development server:
+```bash
+npm run dev
+```
+
+Your app will be available at `http://localhost:3000` (or the port specified by Vite in the terminal output).

@@ -1,0 +1,13 @@
+{
+  "name": "Remix: INDUS",
+  "description": "India’s next-generation AI ecosystem providing powerful AI tools with a premium futuristic experience.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "ai_chat",
+    "file_analysis",
+    "voice_assistant"
+  ]
+}

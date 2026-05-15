@@ -1,0 +1,84 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // User Profile Rules
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidUser(incoming());
+      allow update: if isOwner(userId) && isValidUser(incoming()) 
+        && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'updatedAt'])
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt;
+
+      function isValidUser(data) {
+        return data.uid == request.auth.uid
+          && data.email is string && data.email.size() < 256
+          && data.membershipType in ['free', 'standard', 'pro']
+          && (data.displayName == null || (data.displayName is string && data.displayName.size() < 100))
+          && data.createdAt == (resource == null ? request.time : existing().createdAt);
+      }
+    }
+
+    // Chat History Rules
+    match /chats/{chatId} {
+      allow get: if isSignedIn() && existing().userId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && incoming().userId == request.auth.uid && isValidChat(incoming());
+      allow update: if isSignedIn() && existing().userId == request.auth.uid && isValidChat(incoming())
+        && incoming().diff(existing()).affectedKeys().hasOnly(['messages', 'title', 'updatedAt', 'mode'])
+        && incoming().userId == existing().userId
+        && incoming().createdAt == existing().createdAt;
+      allow delete: if isSignedIn() && existing().userId == request.auth.uid;
+
+      function isValidChat(data) {
+        return data.userId == request.auth.uid
+          && data.messages is list && data.messages.size() <= 1000
+          && (data.title == null || (data.title is string && data.title.size() < 200))
+          && data.createdAt == (resource == null ? request.time : existing().createdAt);
+      }
+    }
+
+    // File Asset Rules
+    match /files/{fileId} {
+      allow get: if isSignedIn() && existing().userId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && incoming().userId == request.auth.uid && isValidFile(incoming());
+      allow update: if false; // Files metadata are usually immutable
+      allow delete: if isSignedIn() && existing().userId == request.auth.uid;
+
+      function isValidFile(data) {
+        return data.userId == request.auth.uid
+          && data.name is string && data.name.size() < 255
+          && data.url is string && data.url.size() < 1024
+          && data.type is string && data.type.size() < 50
+          && data.createdAt == request.time;
+      }
+    }
+  }
+}

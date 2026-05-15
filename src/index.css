@@ -1,0 +1,106 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Space Grotesk", sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+
+  --color-indus-black: #0F172A;
+  --color-indus-navy: #1E293B;
+  --color-indus-cyan: #06b6d4; /* Tailwind cyan-500 equivalent */
+  --color-indus-blue: #2563eb; /* Tailwind blue-600 */
+  --color-indus-purple: #9333ea; /* Tailwind purple-600 */
+  --color-indus-white: #ffffff;
+  --color-indus-slate-400: #94a3b8;
+  --color-indus-slate-500: #64748b;
+  --color-indus-slate-600: #475569;
+  
+  --animate-pulse-slow: pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  --animate-float: float 6s ease-in-out infinite;
+}
+
+@layer base {
+  body {
+    @apply bg-indus-black text-slate-100 font-sans antialiased selection:bg-indus-cyan/30;
+    overflow-x: hidden;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display tracking-tight text-white;
+  }
+}
+
+@layer components {
+  .glass-card {
+    @apply bg-indus-navy/40 backdrop-blur-3xl border border-white/5 rounded-2xl;
+  }
+
+  .glass-button {
+    @apply bg-white/5 backdrop-blur-md border border-white/10 hover:bg-white/10 transition-all duration-300;
+  }
+
+  .glow-cyan {
+    @apply shadow-[0_0_30px_rgba(6,182,212,0.25)];
+  }
+
+  .glow-purple {
+    @apply shadow-[0_0_30px_rgba(147,51,234,0.2)];
+  }
+
+  .glow-white {
+    @apply shadow-[0_0_30px_rgba(255,255,255,0.15)];
+  }
+  
+  .text-glow-cyan {
+    text-shadow: 0 0 15px rgba(6,182,212,0.4);
+  }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-20px); }
+}
+
+@keyframes gradient-x {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+.animate-gradient-x {
+  animation: gradient-x 15s ease infinite;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-indus-black;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-indus-white/10 rounded-full hover:bg-indus-cyan/40 transition-colors;
+}
+
+/* Markdown Styles */
+.prose {
+  @apply text-indus-white/90 leading-relaxed;
+}
+
+.prose pre {
+  @apply bg-indus-navy/50 border border-indus-white/10 p-4 rounded-xl my-4 overflow-x-auto;
+}
+
+.prose code {
+  @apply font-mono text-indus-cyan text-sm;
+}
+
+.prose h1, .prose h2, .prose h3 {
+  @apply mt-6 mb-4;
+}
+
+.prose p {
+  @apply mb-4;
+}
