@@ -13,7 +13,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { APP_NAME, FOUNDER, CO_FOUNDER } from '../lib/constants';
+import { APP_NAME, CEO } from '../lib/constants';
 import { auth, logout, db } from '../lib/firebase';
 import { collection, query, where, getDocs, count } from 'firebase/firestore';
 
@@ -146,17 +146,13 @@ export default function Profile() {
           </div>
         </div>
 
-        {/* Founder Credits */}
+        {/* CEO Credit */}
         <div className="bg-indus-navy/40 border border-indus-white/10 p-8 rounded-3xl flex flex-col items-center text-center">
           <p className="text-[10px] uppercase tracking-[0.4em] font-mono text-indus-white/20 mb-6">INDUS Visionaries</p>
           <div className="flex gap-16">
             <div>
-              <p className="text-lg font-display font-bold">{FOUNDER}</p>
-              <p className="text-[10px] text-indus-white/40 uppercase tracking-widest">Founder</p>
-            </div>
-            <div>
-              <p className="text-lg font-display font-bold">{CO_FOUNDER}</p>
-              <p className="text-[10px] text-indus-white/40 uppercase tracking-widest">Co-Founder</p>
+              <p className="text-lg font-display font-bold">{CEO}</p>
+              <p className="text-[10px] text-indus-white/40 uppercase tracking-widest">CEO</p>
             </div>
           </div>
         </div>

@@ -14,7 +14,7 @@ import {
   ShieldAlert
 } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { APP_NAME, AppView, FOUNDER, CO_FOUNDER } from '../lib/constants';
+import { APP_NAME, AppView, CEO } from '../lib/constants';
 
 import IndusLogo from './IndusLogo';
 
@@ -120,11 +120,10 @@ export default function Sidebar({ currentView, setView, setIsSidebarOpen }: Side
           <span className="text-sm">Settings</span>
         </button>
 
-        {/* Founder Info */}
+        {/* CEO Info */}
         <div className="px-4 py-4 bg-indus-black/40 rounded-xl border border-indus-white/5">
-          <p className="text-[10px] text-indus-white/30 uppercase tracking-widest mb-2 font-mono">Founders</p>
-          <p className="text-[11px] font-medium text-indus-white/70">{FOUNDER}</p>
-          <p className="text-[11px] font-medium text-indus-white/70">{CO_FOUNDER}</p>
+          <p className="text-[10px] text-indus-white/30 uppercase tracking-widest mb-2 font-mono">CEO</p>
+          <p className="text-[11px] font-medium text-indus-white/70">{CEO}</p>
         </div>
       </div>
     </aside>

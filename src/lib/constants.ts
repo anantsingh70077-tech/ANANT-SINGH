@@ -15,8 +15,7 @@ import {
 } from 'lucide-react';
 
 export const APP_NAME = "INDUS";
-export const FOUNDER = "Anant Singh";
-export const CO_FOUNDER = "Saanvika Singh";
+export const CEO = "Anant Singh";
 
 export enum AppView {
   SPLASH = 'splash',
