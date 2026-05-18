@@ -26,7 +26,7 @@ import {
   PlusCircle
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
-import { GoogleGenAI, GenerateContentResponse, ThinkingLevel } from "@google/genai";
+import { GoogleGenAI, GenerateContentResponse, ThinkingLevel, GenerateVideosOperation } from "@google/genai";
 import { cn } from '../lib/utils';
 import { APP_NAME, AI_MODES, AI_MODELS } from '../lib/constants';
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
@@ -44,6 +44,7 @@ interface Message {
   id: string;
   timestamp?: any;
   imageUrl?: string;
+  videoUrl?: string;
   groundingLinks?: GroundingLink[];
   artifacts?: {
     type: 'code' | 'markdown';
@@ -186,7 +187,8 @@ export default function Chat({ initialPrompt, setInitialPrompt }: ChatProps) {
 
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY as string });
       
-      const modelToUse = isImageRequest ? 'gemini-2.5-flash-image' : selectedModel.id;
+      const isVideoRequest = selectedModel.id.includes('veo');
+      const modelToUse = isVideoRequest ? selectedModel.id : (isImageRequest ? 'gemini-2.5-flash-image' : selectedModel.id);
       
       const runConfig = {
         model: modelToUse,
@@ -203,7 +205,80 @@ export default function Chat({ initialPrompt, setInitialPrompt }: ChatProps) {
       
       setMessages(prev => [...prev, { role: 'assistant', content: '', id: assistantMessageId, timestamp: new Date() }]);
 
-      if (isImageRequest) {
+      if (isVideoRequest) {
+        setMessages(prev => prev.map(msg => 
+          msg.id === assistantMessageId ? { 
+            ...msg, 
+            content: "Initializing Neural Video Synthesis (this may take a few minutes)...", 
+          } : msg
+        ));
+
+        let operation = await ai.models.generateVideos({
+          model: modelToUse,
+          prompt: userMessageContent,
+          config: {
+            numberOfVideos: 1,
+            resolution: '720p',
+            aspectRatio: '16:9'
+          }
+        });
+
+        setMessages(prev => prev.map(msg => 
+          msg.id === assistantMessageId ? { 
+            ...msg, 
+            content: "Synthesizing video frames...", 
+          } : msg
+        ));
+
+        // Poll for completion
+        let done = false;
+        let videoUri = '';
+        while (!done) {
+          await new Promise(resolve => setTimeout(resolve, 5000));
+          const op = new GenerateVideosOperation();
+          op.name = operation.name;
+          const updated = await ai.operations.getVideosOperation({ operation: op });
+          done = updated.done || false;
+          if (done && updated.response?.generatedVideos?.[0]?.video?.uri) {
+            videoUri = updated.response.generatedVideos[0].video.uri;
+          }
+        }
+
+        if (videoUri) {
+          // Unfortunately the browser cannot directly fetch the video URI without the API key,
+          // but we can just use the proxy approach if we were on backend. 
+          // Since we are client side, we can render a video tag with the uri directly?
+          // No, video uri from Gemini needs the API key header. So we have to fetch as blob.
+          setMessages(prev => prev.map(msg => 
+            msg.id === assistantMessageId ? { 
+              ...msg, 
+              content: "Downloading synthesized video...", 
+            } : msg
+          ));
+
+          const videoRes = await fetch(videoUri, {
+            headers: { 'x-goog-api-key': process.env.GEMINI_API_KEY as string },
+          });
+          const blob = await videoRes.blob();
+          const localUrl = URL.createObjectURL(blob);
+
+          setMessages(prev => prev.map(msg => 
+            msg.id === assistantMessageId ? { 
+              ...msg, 
+              content: "Video synthesis complete.", 
+              videoUrl: localUrl
+            } : msg
+          ));
+        } else {
+          setMessages(prev => prev.map(msg => 
+            msg.id === assistantMessageId ? { 
+              ...msg, 
+              content: "Video synthesis failed.", 
+            } : msg
+          ));
+        }
+
+      } else if (isImageRequest) {
         const response = await ai.models.generateContent({
           model: 'gemini-2.5-flash-image',
           contents: userMessageContent,
@@ -225,13 +300,23 @@ export default function Chat({ initialPrompt, setInitialPrompt }: ChatProps) {
           } : msg
         ));
       } else {
+        const isLiveModel = selectedModel.id.includes('live');
+        
+        let generateConfig: any = {
+          ...runConfig.config
+        };
+        
+        if (!isLiveModel) {
+          generateConfig.thinkingConfig = { thinkingLevel: ThinkingLevel.HIGH };
+        } else {
+          // Live model doesn't support googleSearch or thinking
+          delete generateConfig.tools;
+        }
+
         const responseStream = await ai.models.generateContentStream({
           model: selectedModel.id,
           contents: userMessageContent,
-          config: {
-            ...runConfig.config,
-            thinkingConfig: { thinkingLevel: ThinkingLevel.HIGH }
-          },
+          config: generateConfig,
         });
 
         let thinkingContent = '';
@@ -313,9 +398,10 @@ export default function Chat({ initialPrompt, setInitialPrompt }: ChatProps) {
 
     } catch (error) {
       console.error("AI Error:", error);
+      const errorMessage = error?.message || String(error);
       setMessages(prev => [...prev, { 
         role: 'assistant', 
-        content: "INDUS Neural link lost. Please check your encryption and retry.", 
+        content: `INDUS Neural link lost. Error: ${errorMessage}`, 
         id: Date.now().toString() 
       }]);
     } finally {
@@ -526,6 +612,12 @@ export default function Chat({ initialPrompt, setInitialPrompt }: ChatProps) {
                           <Maximize2 className="w-4 h-4" /> Expand Artifact
                         </div>
                       </button>
+                    </div>
+                  )}
+
+                  {msg.videoUrl && (
+                    <div className="mt-4 rounded-2xl overflow-hidden border border-white/10 shadow-2xl relative">
+                      <video src={msg.videoUrl} controls autoPlay loop className="w-full object-cover max-h-[400px]" />
                     </div>
                   )}
 
