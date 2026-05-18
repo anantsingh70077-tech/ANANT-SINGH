@@ -27,19 +27,25 @@ service cloud.firestore {
       return resource.data;
     }
 
+    function isAdmin() {
+      return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
     // User Profile Rules
     match /users/{userId} {
-      allow get: if isOwner(userId);
-      allow create: if isOwner(userId) && isValidUser(incoming());
-      allow update: if isOwner(userId) && isValidUser(incoming()) 
-        && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'updatedAt'])
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
+      allow create: if isOwner(userId) && isValidUser(incoming()) && (!('role' in incoming()) || incoming().role == 'user');
+      allow update: if (isOwner(userId) && isValidUser(incoming()) 
+        && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'updatedAt', 'lastLoginAt'])
         && incoming().uid == existing().uid
-        && incoming().createdAt == existing().createdAt;
+        && incoming().createdAt == existing().createdAt) || isAdmin();
+      allow delete: if isAdmin();
 
       function isValidUser(data) {
         return data.uid == request.auth.uid
           && data.email is string && data.email.size() < 256
-          && data.membershipType in ['free', 'standard', 'pro']
+          && (('membershipType' in data) == false || data.membershipType in ['free', 'standard', 'pro'])
           && (data.displayName == null || (data.displayName is string && data.displayName.size() < 100))
           && data.createdAt == (resource == null ? request.time : existing().createdAt);
       }
@@ -47,14 +53,14 @@ service cloud.firestore {
 
     // Chat History Rules
     match /chats/{chatId} {
-      allow get: if isSignedIn() && existing().userId == request.auth.uid;
-      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow get: if isSignedIn() && existing().userId == request.auth.uid || isAdmin();
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid || isAdmin();
       allow create: if isSignedIn() && incoming().userId == request.auth.uid && isValidChat(incoming());
-      allow update: if isSignedIn() && existing().userId == request.auth.uid && isValidChat(incoming())
+      allow update: if (isSignedIn() && existing().userId == request.auth.uid && isValidChat(incoming())
         && incoming().diff(existing()).affectedKeys().hasOnly(['messages', 'title', 'updatedAt', 'mode'])
         && incoming().userId == existing().userId
-        && incoming().createdAt == existing().createdAt;
-      allow delete: if isSignedIn() && existing().userId == request.auth.uid;
+        && incoming().createdAt == existing().createdAt) || isAdmin();
+      allow delete: if isSignedIn() && existing().userId == request.auth.uid || isAdmin();
 
       function isValidChat(data) {
         return data.userId == request.auth.uid
@@ -66,11 +72,11 @@ service cloud.firestore {
 
     // File Asset Rules
     match /files/{fileId} {
-      allow get: if isSignedIn() && existing().userId == request.auth.uid;
-      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow get: if isSignedIn() && existing().userId == request.auth.uid || isAdmin();
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid || isAdmin();
       allow create: if isSignedIn() && incoming().userId == request.auth.uid && isValidFile(incoming());
-      allow update: if false; // Files metadata are usually immutable
-      allow delete: if isSignedIn() && existing().userId == request.auth.uid;
+      allow update: if isAdmin(); // Files metadata are usually immutable
+      allow delete: if isSignedIn() && existing().userId == request.auth.uid || isAdmin();
 
       function isValidFile(data) {
         return data.userId == request.auth.uid
@@ -83,11 +89,11 @@ service cloud.firestore {
 
     // Artifact Rules
     match /artifacts/{artifactId} {
-      allow get: if isSignedIn() && existing().userId == request.auth.uid;
-      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow get: if isSignedIn() && existing().userId == request.auth.uid || isAdmin();
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid || isAdmin();
       allow create: if isSignedIn() && incoming().userId == request.auth.uid && isValidArtifact(incoming());
-      allow update: if false; // Artifacts are usually immutable
-      allow delete: if isSignedIn() && existing().userId == request.auth.uid;
+      allow update: if false || isAdmin(); // Artifacts are usually immutable
+      allow delete: if isSignedIn() && existing().userId == request.auth.uid || isAdmin();
 
       function isValidArtifact(data) {
         return data.userId == request.auth.uid

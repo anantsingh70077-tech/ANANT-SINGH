@@ -11,6 +11,7 @@
         "photoURL": { "type": "string" },
         "membershipType": { "type": "string", "enum": ["free", "standard", "pro"] },
         "membershipExpiresAt": { "type": "string", "format": "date-time" },
+        "role": { "type": "string", "enum": ["user", "admin"] },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }
       },

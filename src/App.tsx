@@ -35,6 +35,7 @@ import NeuralLab from './components/NeuralLab';
 import WebBuilder from './components/WebBuilder';
 import NeuralStatusBar from './components/NeuralStatusBar';
 import IndusLogo from './components/IndusLogo';
+import AdminDashboard from './components/AdminDashboard';
 
 export default function App() {
   const [view, setView] = useState<AppView>(AppView.SPLASH);
@@ -86,6 +87,8 @@ export default function App() {
         return <NeuralLab />;
       case AppView.WEB_BUILDER:
         return <WebBuilder />;
+      case AppView.ADMIN:
+        return <AdminDashboard />;
       default:
         return <Dashboard setView={setView} setInitialPrompt={setInitialPrompt} />;
     }

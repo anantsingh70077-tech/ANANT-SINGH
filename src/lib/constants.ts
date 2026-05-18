@@ -29,7 +29,8 @@ export enum AppView {
   MEMBERSHIP = 'membership',
   SETTINGS = 'settings',
   NEURAL_LAB = 'neural_lab',
-  WEB_BUILDER = 'web_builder'
+  WEB_BUILDER = 'web_builder',
+  ADMIN = 'admin'
 }
 
 export const AI_MODES = [

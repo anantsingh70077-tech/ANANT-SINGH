@@ -10,12 +10,15 @@ import {
   ChevronRight,
   LogOut,
   Sparkles,
-  Video
+  Video,
+  ShieldAlert
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { APP_NAME, AppView, FOUNDER, CO_FOUNDER } from '../lib/constants';
 
 import IndusLogo from './IndusLogo';
+
+import { useAdminStatus } from '../lib/useAdminStatus';
 
 interface SidebarProps {
   currentView: AppView;
@@ -24,12 +27,17 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ currentView, setView, setIsSidebarOpen }: SidebarProps) {
+  const { isAdmin } = useAdminStatus();
   const menuItems = [
     { id: AppView.HOME, label: 'Dashboard', icon: LayoutDashboard },
     { id: AppView.CHAT, label: 'Chat History', icon: MessageSquare },
     { id: AppView.TOOLS, label: 'AI Workspace', icon: Briefcase },
     { id: AppView.WORKSPACE, label: 'Saved Files', icon: FolderRoot },
   ];
+
+  if (isAdmin) {
+    menuItems.push({ id: AppView.ADMIN, label: 'Admin Panel', icon: ShieldAlert });
+  }
 
   const handleNav = (id: AppView) => {
     setView(id);
