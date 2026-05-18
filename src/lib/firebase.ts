@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, User as FirebaseUser, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, updateProfile } from 'firebase/auth';
 import { getFirestore, doc, setDoc, getDoc, collection, query, where, getDocs, onSnapshot, serverTimestamp, getDocFromServer } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
@@ -68,12 +68,8 @@ async function testConnection() {
 testConnection();
 
 // Auth Helpers
-export const signInWithGoogle = async () => {
+export const handleFirestoreUserSync = async (user: FirebaseUser, displayName?: string) => {
   try {
-    const result = await signInWithPopup(auth, googleProvider);
-    const user = result.user;
-    
-    // Sync user to firestore
     const userRef = doc(db, 'users', user.uid);
     const userDoc = await getDoc(userRef);
     
@@ -81,16 +77,62 @@ export const signInWithGoogle = async () => {
       await setDoc(userRef, {
         uid: user.uid,
         email: user.email,
-        displayName: user.displayName,
+        displayName: displayName || user.displayName || user.email?.split('@')[0] || 'User',
         photoURL: user.photoURL,
         membershipType: 'standard', // Promotional standard membership
         createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
+        updatedAt: serverTimestamp(),
+        lastLoginAt: serverTimestamp(),
       });
+    } else {
+      // Just update lastlogin
+      await setDoc(userRef, { lastLoginAt: serverTimestamp() }, { merge: true });
     }
-    return user;
+  } catch (error) {
+    console.error("Firestore Error in Auth Sync:", error);
+    // don't throw to prevent blocking auth
+  }
+};
+
+export const signInWithGoogle = async () => {
+  try {
+    const result = await signInWithPopup(auth, googleProvider);
+    await handleFirestoreUserSync(result.user);
+    return result.user;
   } catch (error) {
     console.error("Login Error:", error);
+    throw error;
+  }
+};
+
+export const registerWithEmail = async (email: string, password: string, name: string) => {
+  try {
+    const result = await createUserWithEmailAndPassword(auth, email, password);
+    await updateProfile(result.user, { displayName: name });
+    await handleFirestoreUserSync(result.user, name);
+    return result.user;
+  } catch (error) {
+    console.error("Register Error:", error);
+    throw error;
+  }
+};
+
+export const loginWithEmail = async (email: string, password: string) => {
+  try {
+    const result = await signInWithEmailAndPassword(auth, email, password);
+    await handleFirestoreUserSync(result.user);
+    return result.user;
+  } catch (error) {
+    console.error("Login Error:", error);
+    throw error;
+  }
+};
+
+export const resetPassword = async (email: string) => {
+  try {
+    await sendPasswordResetEmail(auth, email);
+  } catch (error) {
+    console.error("Reset Password Error:", error);
     throw error;
   }
 };

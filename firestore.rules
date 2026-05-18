@@ -80,5 +80,24 @@ service cloud.firestore {
           && data.createdAt == request.time;
       }
     }
+
+    // Artifact Rules
+    match /artifacts/{artifactId} {
+      allow get: if isSignedIn() && existing().userId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && incoming().userId == request.auth.uid && isValidArtifact(incoming());
+      allow update: if false; // Artifacts are usually immutable
+      allow delete: if isSignedIn() && existing().userId == request.auth.uid;
+
+      function isValidArtifact(data) {
+        return data.userId == request.auth.uid
+          && data.type in ['code', 'image', 'markdown']
+          && data.title is string && data.title.size() < 255
+          && data.content is string && data.content.size() < 1048576 // 1MB limit for safety
+          && (data.language == null || (data.language is string && data.language.size() < 50))
+          && (data.chatId == null || (data.chatId is string && data.chatId.size() <= 128))
+          && data.createdAt == request.time;
+      }
+    }
   }
 }

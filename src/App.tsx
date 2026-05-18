@@ -52,18 +52,22 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    // Initial splash delay
+    // Initial splash delay handle
     if (authChecked) {
-      const timer = setTimeout(() => {
-        if (!user) {
+      if (view === AppView.SPLASH) {
+        const timer = setTimeout(() => {
+          setView(user ? AppView.HOME : AppView.AUTH);
+        }, 2000); // reduced splash delay
+        return () => clearTimeout(timer);
+      } else {
+        if (!user && view !== AppView.AUTH) {
           setView(AppView.AUTH);
-        } else if (view === AppView.SPLASH || view === AppView.AUTH) {
+        } else if (user && view === AppView.AUTH) {
           setView(AppView.HOME);
         }
-      }, 3500);
-      return () => clearTimeout(timer);
+      }
     }
-  }, [authChecked, user]);
+  }, [authChecked, user, view]);
 
   const renderContent = () => {
     switch (view) {
@@ -91,7 +95,7 @@ export default function App() {
     return <SplashScreen />;
   }
 
-  if (view === AppView.AUTH && !user) {
+  if (view === AppView.AUTH) {
     return <AuthView />;
   }
 

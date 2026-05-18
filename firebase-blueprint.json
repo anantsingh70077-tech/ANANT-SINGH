@@ -53,6 +53,21 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["userId", "name", "url", "type"]
+    },
+    "Artifact": {
+      "title": "Artifact",
+      "description": "An artifact extracted from chat",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "type": { "type": "string", "enum": ["code", "image", "markdown"] },
+        "language": { "type": "string" },
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "chatId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "type", "title", "content"]
     }
   },
   "firestore": {
@@ -67,6 +82,10 @@
     "/files/{fileId}": {
       "schema": "FileAsset",
       "description": "Store uploaded file metadata"
+    },
+    "/artifacts/{artifactId}": {
+      "schema": "Artifact",
+      "description": "Store chat artifacts"
     }
   }
 }
