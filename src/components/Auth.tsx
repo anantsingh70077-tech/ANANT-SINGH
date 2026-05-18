@@ -14,6 +14,7 @@ export default function Auth() {
     if (code === 'auth/invalid-credential' || code === 'auth/user-not-found' || code === 'auth/wrong-password') return 'Invalid credentials.';
     if (code === 'auth/email-already-in-use') return 'An account with this email already exists.';
     if (code === 'auth/weak-password') return 'Password should be at least 6 characters.';
+    if (code === 'auth/unauthorized-domain') return "Domain Unauthorized. Please add this domain to 'Authorized domains' in your Firebase console under Authentication > Settings.";
     return err?.message || 'Authentication failed. Please try again.';
   };
 
