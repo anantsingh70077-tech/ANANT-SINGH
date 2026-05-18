@@ -8,6 +8,7 @@
   "majorCapabilities": [
     "ai_chat",
     "file_analysis",
-    "voice_assistant"
+    "voice_assistant",
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
   ]
 }

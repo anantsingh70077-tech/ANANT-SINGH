@@ -23,13 +23,13 @@ import {
   Image as ImageIconAlt,
   Code,
   Globe,
-  PlusCircle
+  PlusCircle,
+  X
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
-import { GoogleGenAI, GenerateContentResponse, ThinkingLevel, GenerateVideosOperation } from "@google/genai";
 import { cn } from '../lib/utils';
 import { APP_NAME, AI_MODES, AI_MODELS } from '../lib/constants';
-import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
+import { db, auth } from '../lib/firebase';
 import { doc, setDoc, updateDoc, arrayUnion, serverTimestamp } from 'firebase/firestore';
 import ArtifactsSidebar from './ArtifactsSidebar';
 
@@ -76,7 +76,28 @@ export default function Chat({ initialPrompt, setInitialPrompt }: ChatProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isListening, setIsListening] = useState(false);
+  const [selectedFiles, setSelectedFiles] = useState<{ name: string, type: string, data: string }[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    for (const file of files) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const base64 = event.target?.result as string;
+        const data = base64.split(',')[1];
+        setSelectedFiles(prev => [...prev, { name: file.name, type: file.type, data }]);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const removeFile = (index: number) => {
+    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+  };
 
   useEffect(() => {
     if (initialPrompt && setInitialPrompt) {
@@ -147,10 +168,11 @@ export default function Chat({ initialPrompt, setInitialPrompt }: ChatProps) {
   };
 
   const handleSend = async () => {
-    if (!input.trim() || isTyping || !auth.currentUser) return;
+    if ((!input.trim() && selectedFiles.length === 0) || isTyping || !auth.currentUser) return;
 
     const userMessageContent = input.trim();
     const userMessageId = Date.now().toString();
+    const currentFiles = [...selectedFiles];
     
     // Check if it's an image generation request
     const isImageRequest = userMessageContent.toLowerCase().includes('generate') && 
@@ -165,6 +187,7 @@ export default function Chat({ initialPrompt, setInitialPrompt }: ChatProps) {
     
     setMessages(prev => [...prev, userMessage]);
     setInput('');
+    setSelectedFiles([]);
     setIsTyping(true);
 
     let currentChatId = chatId;
@@ -176,7 +199,7 @@ export default function Chat({ initialPrompt, setInitialPrompt }: ChatProps) {
         const chatRef = doc(db, 'chats', currentChatId);
         await setDoc(chatRef, {
           userId: auth.currentUser.uid,
-          title: userMessageContent.slice(0, 50),
+          title: userMessageContent.slice(0, 50) || 'Multimedia Analysis',
           mode: selectedMode.id,
           model: selectedModel.id,
           messages: [userMessage],
@@ -185,24 +208,15 @@ export default function Chat({ initialPrompt, setInitialPrompt }: ChatProps) {
         });
       }
 
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY as string });
-      
       const isVideoRequest = selectedModel.id.includes('veo');
       const modelToUse = isVideoRequest ? selectedModel.id : (isImageRequest ? 'gemini-2.5-flash-image' : selectedModel.id);
       
-      const runConfig = {
-        model: modelToUse,
-        config: {
-          systemInstruction: `You are ${APP_NAME}, the world's most advanced AI ecosystem. You are elegant, professional, and slightly futuristic. In ${selectedMode.name} mode. Use artifacts for code or long docs.`,
-          tools: [{ googleSearch: {} }],
-        },
-      };
-
+      const assistantMessageId = (Date.now() + 1).toString();
       let assistantContent = '';
       let imageUrlOutput = '';
       let groundingLinks: GroundingLink[] = [];
-      const assistantMessageId = (Date.now() + 1).toString();
-      
+      let thinkingContent = '';
+
       setMessages(prev => [...prev, { role: 'assistant', content: '', id: assistantMessageId, timestamp: new Date() }]);
 
       if (isVideoRequest) {
@@ -213,21 +227,20 @@ export default function Chat({ initialPrompt, setInitialPrompt }: ChatProps) {
           } : msg
         ));
 
-        let operation = await ai.models.generateVideos({
-          model: modelToUse,
-          prompt: userMessageContent,
-          config: {
-            numberOfVideos: 1,
-            resolution: '720p',
-            aspectRatio: '16:9'
-          }
+        const videoReq = await fetch('/api/ai/generate-video', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: modelToUse,
+            prompt: userMessageContent,
+            config: { numberOfVideos: 1, resolution: '720p', aspectRatio: '16:9' }
+          })
         });
+        const { operationName, error: videoStartError } = await videoReq.json();
+        if (videoStartError) throw new Error(videoStartError);
 
         setMessages(prev => prev.map(msg => 
-          msg.id === assistantMessageId ? { 
-            ...msg, 
-            content: "Synthesizing video frames...", 
-          } : msg
+          msg.id === assistantMessageId ? { ...msg, content: "Synthesizing video frames..." } : msg
         ));
 
         // Poll for completion
@@ -235,33 +248,21 @@ export default function Chat({ initialPrompt, setInitialPrompt }: ChatProps) {
         let videoUri = '';
         while (!done) {
           await new Promise(resolve => setTimeout(resolve, 5000));
-          const op = new GenerateVideosOperation();
-          op.name = operation.name;
-          const updated = await ai.operations.getVideosOperation({ operation: op });
-          done = updated.done || false;
-          if (done && updated.response?.generatedVideos?.[0]?.video?.uri) {
-            videoUri = updated.response.generatedVideos[0].video.uri;
-          }
+          const statusReq = await fetch('/api/ai/video-status', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ operationName })
+          });
+          const status = await statusReq.json();
+          done = status.done;
+          videoUri = status.uri;
         }
 
         if (videoUri) {
-          // Unfortunately the browser cannot directly fetch the video URI without the API key,
-          // but we can just use the proxy approach if we were on backend. 
-          // Since we are client side, we can render a video tag with the uri directly?
-          // No, video uri from Gemini needs the API key header. So we have to fetch as blob.
           setMessages(prev => prev.map(msg => 
-            msg.id === assistantMessageId ? { 
-              ...msg, 
-              content: "Downloading synthesized video...", 
-            } : msg
+            msg.id === assistantMessageId ? { ...msg, content: "Downloading synthesized video..." } : msg
           ));
-
-          const videoRes = await fetch(videoUri, {
-            headers: { 'x-goog-api-key': process.env.GEMINI_API_KEY as string },
-          });
-          const blob = await videoRes.blob();
-          const localUrl = URL.createObjectURL(blob);
-
+          const localUrl = `/api/ai/video-download?uri=${encodeURIComponent(videoUri)}`;
           setMessages(prev => prev.map(msg => 
             msg.id === assistantMessageId ? { 
               ...msg, 
@@ -270,21 +271,22 @@ export default function Chat({ initialPrompt, setInitialPrompt }: ChatProps) {
             } : msg
           ));
         } else {
-          setMessages(prev => prev.map(msg => 
-            msg.id === assistantMessageId ? { 
-              ...msg, 
-              content: "Video synthesis failed.", 
-            } : msg
-          ));
+          throw new Error("Video synthesis returned no URI.");
         }
 
       } else if (isImageRequest) {
-        const response = await ai.models.generateContent({
-          model: 'gemini-2.5-flash-image',
-          contents: userMessageContent,
+        const response = await fetch('/api/ai/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: 'gemini-2.5-flash-image',
+            contents: userMessageContent,
+          })
         });
+        const data = await response.json();
+        if (data.error) throw new Error(data.error);
 
-        for (const part of response.candidates[0].content.parts) {
+        for (const part of data.candidates[0].content.parts) {
           if (part.inlineData) {
             imageUrlOutput = `data:image/png;base64,${part.inlineData.data}`;
           } else if (part.text) {
@@ -301,50 +303,82 @@ export default function Chat({ initialPrompt, setInitialPrompt }: ChatProps) {
         ));
       } else {
         const isLiveModel = selectedModel.id.includes('live');
+        const tools = isLiveModel ? undefined : [{ googleSearch: {} }];
         
-        let generateConfig: any = {
-          ...runConfig.config
-        };
-        
-        if (!isLiveModel) {
-          generateConfig.thinkingConfig = { thinkingLevel: ThinkingLevel.HIGH };
-        } else {
-          // Live model doesn't support googleSearch or thinking
-          delete generateConfig.tools;
+        // Construct multimodal contents
+        const userContentParts: any[] = [];
+        if (userMessageContent) {
+          userContentParts.push({ text: userMessageContent });
         }
-
-        const responseStream = await ai.models.generateContentStream({
-          model: selectedModel.id,
-          contents: userMessageContent,
-          config: generateConfig,
+        currentFiles.forEach(file => {
+          userContentParts.push({
+            inlineData: {
+              data: file.data,
+              mimeType: file.type
+            }
+          });
         });
 
-        let thinkingContent = '';
+        const response = await fetch('/api/ai/chat-stream', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: selectedModel.id,
+            contents: [{ role: 'user', parts: userContentParts }],
+            systemInstruction: `You are ${APP_NAME}, the world's most advanced AI ecosystem. You are elegant, professional, and slightly futuristic. In ${selectedMode.name} mode. You have access to real-time search and can analyze various file types (images, docs, etc.). Provide deep, comprehensive insights just like ChatGPT or Gemini. Use artifacts for code or long docs.`,
+            tools,
+            thinkingLevel: 'HIGH'
+          })
+        });
 
-        for await (const chunk of responseStream) {
-          const chunkText = (chunk as GenerateContentResponse).text || '';
-          assistantContent += chunkText;
+        const reader = response.body?.getReader();
+        const decoder = new TextDecoder();
+        
+        if (!reader) throw new Error("Failed to initialize stream reader");
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
           
-          const thinkingPart = (chunk as any).thought; // Capture thinking if available
-          if (thinkingPart) {
-            thinkingContent += thinkingPart;
-          }
+          const chunk = decoder.decode(value);
+          const lines = chunk.split('\n');
+          
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const content = line.slice(6).trim();
+              if (content === '[DONE]') break;
+              
+              try {
+                const parsed = JSON.parse(content);
+                if (parsed.error) throw new Error(parsed.error);
+                
+                const chunkText = parsed.text || '';
+                assistantContent += chunkText;
+                
+                if (parsed.thought) {
+                  thinkingContent += parsed.thought;
+                }
 
-          const meta = (chunk as GenerateContentResponse).candidates?.[0]?.groundingMetadata;
-          if (meta?.groundingChunks) {
-            groundingLinks = meta.groundingChunks
-              .filter(c => c.web)
-              .map(c => ({ uri: c.web!.uri, title: c.web!.title }));
-          }
+                const meta = parsed.candidates?.[0]?.groundingMetadata;
+                if (meta?.groundingChunks) {
+                  groundingLinks = meta.groundingChunks
+                    .filter((c: any) => c.web)
+                    .map((c: any) => ({ uri: c.web!.uri, title: c.web!.title }));
+                }
 
-          setMessages(prev => prev.map(msg => 
-            msg.id === assistantMessageId ? { 
-              ...msg, 
-              content: assistantContent,
-              thinking: thinkingContent,
-              groundingLinks: groundingLinks.length > 0 ? groundingLinks : msg.groundingLinks
-            } : msg
-          ));
+                setMessages(prev => prev.map(msg => 
+                  msg.id === assistantMessageId ? { 
+                    ...msg, 
+                    content: assistantContent,
+                    thinking: thinkingContent,
+                    groundingLinks: groundingLinks.length > 0 ? groundingLinks : msg.groundingLinks
+                  } : msg
+                ));
+              } catch (e) {
+                console.warn("Error parsing stream chunk:", e);
+              }
+            }
+          }
         }
       }
 
@@ -399,9 +433,13 @@ export default function Chat({ initialPrompt, setInitialPrompt }: ChatProps) {
     } catch (error) {
       console.error("AI Error:", error);
       const errorMessage = error?.message || String(error);
+      const isQuotaError = errorMessage.toLowerCase().includes('quota') || errorMessage.toLowerCase().includes('429');
+      
       setMessages(prev => [...prev, { 
         role: 'assistant', 
-        content: `INDUS Neural link lost. Error: ${errorMessage}`, 
+        content: isQuotaError 
+          ? `**Neural Link Congestion Detected** (Error 429). The standard frequency is currently saturated. Please try the **INDUS Lite** model or wait a few cycles for neural recalibration.`
+          : `**INDUS Neural Link Interrupted**. Signal degradation detected: ${errorMessage}`, 
         id: Date.now().toString() 
       }]);
     } finally {
@@ -712,8 +750,50 @@ export default function Chat({ initialPrompt, setInitialPrompt }: ChatProps) {
 
             <div className="relative group">
               <div className="absolute -inset-4 bg-indus-cyan/5 blur-3xl opacity-0 group-focus-within:opacity-100 transition-all rounded-[3rem]" />
+              
+              {/* Selected Files Preview */}
+              <AnimatePresence>
+                {selectedFiles.length > 0 && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                    className="absolute bottom-full left-0 right-0 mb-4 p-4 bg-indus-navy/80 backdrop-blur-2xl border border-white/10 rounded-3xl flex flex-wrap gap-3 z-50 shadow-2xl"
+                  >
+                    {selectedFiles.map((file, idx) => (
+                      <div key={idx} className="relative group/file p-2 pb-1 rounded-xl bg-white/5 border border-white/10 flex flex-col items-center gap-1 min-w-[80px]">
+                        <div className="w-10 h-10 rounded-lg bg-indus-cyan/10 flex items-center justify-center">
+                          {file.type.startsWith('image') ? (
+                            <img src={`data:${file.type};base64,${file.data}`} className="w-full h-full object-cover rounded-lg" />
+                          ) : (
+                            <Paperclip className="w-5 h-5 text-indus-cyan" />
+                          )}
+                        </div>
+                        <p className="text-[9px] text-white/40 truncate w-16 text-center">{file.name}</p>
+                        <button 
+                          onClick={() => removeFile(idx)}
+                          className="absolute -top-2 -right-2 w-5 h-5 bg-rose-500 rounded-full flex items-center justify-center opacity-0 group-hover/file:opacity-100 transition-opacity"
+                        >
+                          <X className="w-3 h-3 text-white" />
+                        </button>
+                      </div>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
               <div className="relative flex items-center gap-3 bg-white/5 border border-white/10 rounded-[2.5rem] p-3 focus-within:border-indus-cyan/30 transition-all shadow-2xl">
-                <button className="p-4 hover:bg-white/10 rounded-full text-white/40 hover:text-white transition-all group/btn">
+                <input 
+                  type="file" 
+                  ref={fileInputRef} 
+                  onChange={handleFileSelect} 
+                  multiple 
+                  className="hidden" 
+                />
+                <button 
+                  onClick={() => fileInputRef.current?.click()}
+                  className="p-4 hover:bg-white/10 rounded-full text-white/40 hover:text-white transition-all group/btn"
+                >
                   <Paperclip className="w-6 h-6 group-hover/btn:scale-110 duration-200" />
                 </button>
                 <textarea

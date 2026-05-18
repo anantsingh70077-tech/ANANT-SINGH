@@ -47,8 +47,8 @@ export const AI_MODES = [
 ];
 
 export const AI_MODELS = [
-  { id: 'gemini-3-flash-preview', name: 'INDUS Flash v2', description: 'Deep reasoning & creative synthesis.', icon: Brain },
-  { id: 'gemini-flash-latest', name: 'INDUS Fast', description: 'Real-time response & neural speed.', icon: Zap },
+  { id: 'gemini-3-flash-preview', name: 'INDUS Flash', description: 'Deep reasoning & neural speed.', icon: Brain },
+  { id: 'gemini-3.1-flash-lite', name: 'INDUS Lite', description: 'Efficiency & daily synthesis.', icon: Zap },
   { id: 'gemini-2.5-flash-image', name: 'INDUS Vision', description: 'High-fidelity visual imagination.', icon: ImageIcon },
   { id: 'veo-3.1-lite-generate-preview', name: 'INDUS Video', description: 'High-fidelity video generation.', icon: Video },
 ];

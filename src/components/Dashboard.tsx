@@ -114,6 +114,21 @@ export default function Dashboard({ setView, setInitialPrompt }: DashboardProps)
             Execute
           </button>
         </div>
+        
+        <div className="flex flex-wrap justify-center gap-3 mt-6">
+          {QUICK_PROMPTS.map((prompt, i) => (
+            <button
+              key={i}
+              onClick={() => {
+                setInitialPrompt(prompt);
+                setView(AppView.CHAT);
+              }}
+              className="px-5 py-2 rounded-full bg-white/5 border border-white/5 text-[10px] text-white/40 font-bold uppercase tracking-widest hover:bg-white/10 hover:text-white transition-all hover:border-indus-cyan/30"
+            >
+              {prompt}
+            </button>
+          ))}
+        </div>
       </motion.div>
 
       {/* Proactive Neural Modules (Bento Grid) */}
